@@ -2251,8 +2251,12 @@ def validate_plan(
         return False
 
     for step in steps:
-        if has_cycle(step.get("id", ""), set(), set()):
-            errors.append(f"Circular dependency detected involving step '{step.get('id')}'")
+        step_id = step.get("id")
+        if not step_id:
+            # Skip steps without IDs - they should have been caught in earlier validation
+            continue
+        if has_cycle(step_id, set(), set()):
+            errors.append(f"Circular dependency detected involving step '{step_id}'")
             break
 
     # === CONTEXT FLOW VALIDATION ===

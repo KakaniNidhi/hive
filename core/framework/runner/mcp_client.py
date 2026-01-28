@@ -404,13 +404,46 @@ class MCPClient:
         """Disconnect from the MCP server."""
         # Clean up persistent STDIO connection
         if self._loop is not None:
-            # Stop event loop - this will cause context managers to clean up naturally
+            # Properly close async context managers before stopping the loop
+            async def cleanup_connection():
+                """Clean up async resources."""
+                try:
+                    # Close session if it exists
+                    if self._session is not None:
+                        try:
+                            await self._session.__aexit__(None, None, None)
+                        except Exception as e:
+                            logger.warning(f"Error closing MCP session: {e}")
+                        self._session = None
+
+                    # Close stdio context manager (this closes streams and terminates subprocess)
+                    if self._stdio_context is not None:
+                        try:
+                            await self._stdio_context.__aexit__(None, None, None)
+                        except Exception as e:
+                            logger.warning(f"Error closing stdio context: {e}")
+                        self._stdio_context = None
+                        self._read_stream = None
+                        self._write_stream = None
+                except Exception as e:
+                    logger.error(f"Error during connection cleanup: {e}")
+
+            # Schedule cleanup in the event loop
             if self._loop and self._loop.is_running():
+                try:
+                    # Schedule cleanup task
+                    future = asyncio.run_coroutine_threadsafe(cleanup_connection(), self._loop)
+                    # Wait for cleanup to complete (with timeout)
+                    future.result(timeout=5)
+                except Exception as e:
+                    logger.warning(f"Error scheduling cleanup: {e}")
+
+                # Stop event loop after cleanup
                 self._loop.call_soon_threadsafe(self._loop.stop)
 
             # Wait for thread to finish
             if self._loop_thread and self._loop_thread.is_alive():
-                self._loop_thread.join(timeout=2)
+                self._loop_thread.join(timeout=5)
 
             # Clear references
             self._session = None
