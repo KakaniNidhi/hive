@@ -47,7 +47,10 @@ def register_tools(mcp: FastMCP) -> None:
         """
         try:
             secure_path = get_secure_path(path, workspace_id, agent_id, session_id)
-            os.makedirs(os.path.dirname(secure_path), exist_ok=True)
+            # Ensure parent directory exists (handle case where dirname might be empty)
+            parent_dir = os.path.dirname(secure_path)
+            if parent_dir:  # Only create directory if path has a parent component
+                os.makedirs(parent_dir, exist_ok=True)
             mode = "a" if append else "w"
             with open(secure_path, mode, encoding="utf-8") as f:
                 f.write(content)
@@ -55,7 +58,7 @@ def register_tools(mcp: FastMCP) -> None:
                 "success": True,
                 "path": path,
                 "mode": "appended" if append else "written",
-                "bytes_written": len(content.encode("utf-8")),
+                "bytes_written": len(content.encode("utf-8"))
             }
         except Exception as e:
             return {"error": f"Failed to write to file: {str(e)}"}
